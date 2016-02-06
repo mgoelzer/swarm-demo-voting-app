@@ -1,12 +1,6 @@
 =========================
-  AWS Setup
+  AWS Setup Prereqs
 =========================
-
-
-
-#
-# Pre-requisites
-#
 
 0.  Create a VPC and a subnet within it
   VPC Name:  SwarmCluster
@@ -39,18 +33,12 @@
 	ssh -i ~/.ssh/id_rsa_aws.pem ubuntu@<public IP>
 Replace ~/.ssh/id_rsa_aws.pem with the private key corresponding to the public key you entered in the CloudFormation setup.
 
-
---- ALL STEPS AFTER THIS POINT DONE FROM MASATER ---
-
-
-4.  Set up Swarm layer containers:
-
-[same as Vagrant/after-reboot.sh in this repo]
+--- ALL STEPS AFTER THIS POINT DONE FROM MASTER ---
 
 5.  Set up application layer containers:
 
 git clone https://github.com/mgoelzer/swarm-demo-voting-app     # (this repo)
 cd swarm-demo-voting-app
 
-Follow instructions in Vagrant/HOWTO.TXT
+Follow instructions in ../HOWTO.TXT.  Remember that all steps in ../HOWTO.TXT should be done from master.
 

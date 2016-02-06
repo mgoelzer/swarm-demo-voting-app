@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh   # for syntax highlighting, not a script
 
 ###################################################
 #
@@ -14,7 +14,17 @@ $ vagrant up
 
 ###################################################
 #
-# Commands to re-create the Swarm cluster layer
+# Prereqs for AWS
+#
+###################################################
+
+Go to AWS/HOWTO.txt.  Do steps listed there.
+Then continue with the rest of the steps in this file.
+
+
+###################################################
+#
+# Commands to create the Swarm cluster layer
 #
 ###################################################
 
@@ -121,9 +131,64 @@ docker run --restart=unless-stopped --env="constraint:node==frontend02" -d -p 50
 # [etc... for each web+redis node]
 
 #
-# Registrator:  after starting N redis's:
+# To start workers:
 #
-curl 192.168.33.11:8500/v1/catalog/service/redis | jq
+docker run --restart=unless-stopped --env="constraint:node==worker01" -d -e WORKER_NUMBER='01' -e REDIS_CATALOG="http://192.168.33.11:8500/v1/catalog/service/redis" --name worker01 --net mynet vote-worker
+#[etc... for each worker]
+
+#
+# To start results app
+#
+docker run --restart=unless-stopped --env="constraint:node==pg" -p 80:80 -d --name results-app --net mynet results-app
+
+#
+# To start postgres container:
+#
+docker run --restart=unless-stopped --env="constraint:node==pg" --name pg -e POSTGRES_PASSWORD=pg8675309 --net mynet -p 5432:5432 -d postgres ## expose 5432 for debugging only
+
+
+###################################################
+#
+# Usage and debugging
+#
+###################################################
+
+#
+# To vote, browse to:
+#
+http://votingapp.local
+
+#
+# To verify votes are going into the redis queue:
+#
+redis-cli -h 192.168.33.20
+> llen votes
+> lindex votes 0
+> lindex votes 1
+(etc)
+
+#
+# To view ha_proxy stats, browse to:
+#
+http://stats:interlock@votingapp.local/haproxy?stats
+
+#
+# And count votes like this:
+#
+export PSQL=/Applications/Postgres.app/Contents/Versions/9.5/bin/psql
+PGPASSWORD=pg8675309 $PSQL -p5432 -h 192.168.33.251 -U postgres -d postgres 
+#[and query like:  SELECT * FROM votes;]
+
+#
+# Or view them in results-app:
+#
+http://192.168.33.251:80
+
+
+#
+# Having starting N redis's, view them in Registrator:
+#
+curl 192.168.33.11:8500/v1/catalog/service/redis | jq .
 [
   {
     "Node": "consul",
@@ -146,45 +211,4 @@ curl 192.168.33.11:8500/v1/catalog/service/redis | jq
 ]
 
 
-#
-# To vote, browse to:
-#
-http://votingapp.local
-
-#
-# To verify votes are going into the redis queue:
-#
-redis-cli -h 192.168.33.20
-> llen votes
-> lindex votes 0
-> lindex votes 1
-(etc)
-
-#
-# To view ha_proxy stats, browse to:
-#
-http://stats:interlock@votingapp.local/haproxy?stats
-
-#
-# To start postgres container:
-#
-docker run --restart=unless-stopped --env="constraint:node==pg" --name pg -e POSTGRES_PASSWORD=pg8675309 --net mynet -p 5432:5432 -d postgres ## expose 5432 for debugging only
-
-And count votes like this:
-
-export PSQL=/Applications/Postgres.app/Contents/Versions/9.5/bin/psql
-PGPASSWORD=pg8675309 $PSQL -p5432 -h 192.168.33.251 -U postgres -d postgres 
-#[and query like:  SELECT * FROM votes;]
-
-
-#
-# To start workers:
-#
-docker run --restart=unless-stopped --env="constraint:node==worker01" -d -e WORKER_NUMBER='01' -e FROM_REDIS_HOST=1 -e TO_REDIS_HOST=2 --name worker01 --net mynet vote-worker
-#[etc... for each worker]
-
-#
-# To start results app
-#
-docker run --restart=unless-stopped --env="constraint:node==pg" -p 80:80 -d --name results-app --net mynet results-app
 
