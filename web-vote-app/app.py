@@ -13,7 +13,7 @@ option_a = os.getenv('OPTION_A', "Cats")
 option_b = os.getenv('OPTION_B', "Dogs")
 hostname = socket.gethostname()
 
-db_server = "redis%s" % os.environ['WEB_VOTE_NUMBER']
+db_server = "redis%s" % os.environ['FRONTEND_NUM']
 redis = connect_to_redis(db_server)
 app = Flask(__name__)
 
@@ -47,7 +47,7 @@ def index():
         option_a=option_a,
         option_b=option_b,
         hostname=hostname,
-	node="web%s" % os.environ['WEB_VOTE_NUMBER'],
+	node="frontend%s" % os.environ['FRONTEND_NUM'],
         vote=vote,
     ))
     resp.set_cookie('voter_id', voter_id)

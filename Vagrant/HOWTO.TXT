@@ -17,13 +17,6 @@ docker -H tcp://192.168.33.21:2375 build -t web-vote-app .
 docker -H tcp://192.168.33.99:2375 build -t web-vote-app .
 
 #
-# Alternative:  build once and push to Docker Hub
-#
-docker -H tcp://192.168.33.20:2375 build -t mikegoelzer/web-vote-app .
-docker -H tcp://192.168.33.20:2375 login -u mikegoelzer
-docker -H tcp://192.168.33.20:2375 push mikegoelzer/web-vote-app
-
-#
 # To build worker:
 #
 cd vote-worker
@@ -90,12 +83,38 @@ docker -H tcp://192.168.33.12:2375 run --restart=unless-stopped -p 80:80 --name 
 #
 export DOCKER_HOST="tcp://192.168.33.11:3375"
 
-docker run --restart=unless-stopped --env="constraint:node==web01" -p 6379:6379 --name redis01 --net mynet -d redis  ## expose 6379 for debugging only!
-docker run --restart=unless-stopped --env="constraint:node==web01" -d -p 5000:80 -e WEB_VOTE_NUMBER='01' --name web01 --net mynet --hostname votingapp.local web-vote-app
+docker run --restart=unless-stopped --env="constraint:node==frontend01" -p 6379:6379 --name redis01 --net mynet -d redis  ## expose 6379 for debugging only!
+docker run --restart=unless-stopped --env="constraint:node==frontend01" -d -p 5000:80 -e FRONTEND_NUM='01' --name web01 --net mynet --hostname votingapp.local web-vote-app
 
-docker run --restart=unless-stopped --env="constraint:node==web02" -p 6379:6379 --name redis02 --net mynet -d redis  ## expose 6379 for debugging only!
-docker run --restart=unless-stopped --env="constraint:node==web02" -d -p 5000:80 -e WEB_VOTE_NUMBER='02' --name web02 --net mynet --hostname votingapp.local web-vote-app
+docker run --restart=unless-stopped --env="constraint:node==frontend02" -p 6379:6379 --name redis02 --net mynet -d redis  ## expose 6379 for debugging only!
+docker run --restart=unless-stopped --env="constraint:node==frontend02" -d -p 5000:80 -e FRONTEND_NUM='02' --name web02 --net mynet --hostname votingapp.local web-vote-app
 # [etc... for each web+redis node]
+
+#
+# Registrator:  after starting N redis's:
+#
+curl 192.168.33.11:8500/v1/catalog/service/redis | jq
+[
+  {
+    "Node": "consul",
+    "Address": "172.17.0.2",
+    "ServiceID": "91b30bd7e369:redis01:6379",
+    "ServiceName": "redis",
+    "ServiceTags": null,
+    "ServiceAddress": "10.0.0.2",
+    "ServicePort": 6379
+  },
+  {
+    "Node": "consul",
+    "Address": "172.17.0.2",
+    "ServiceID": "087acb552df3:redis02:6379",
+    "ServiceName": "redis",
+    "ServiceTags": null,
+    "ServiceAddress": "10.0.0.3",
+    "ServicePort": 6379
+  }
+]
+
 
 #
 # To vote, browse to:

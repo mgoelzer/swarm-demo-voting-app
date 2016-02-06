@@ -4,52 +4,70 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import java.sql.*;
 import org.json.JSONObject;
+import org.json.JSONArray;
+import org.json.JSONTokener;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.net.URL;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+
+
+class RedisQueue {
+  public String address;
+  public int port;
+  public RedisQueue(String address, int port) {
+    this.address = address; this.port = port;
+  }
+}
 
 class Worker {
-  public static String[] getRedisQueueHostnames() throws Exception {
-    boolean bFoundFromRedisHost = false;
-    boolean bFoundToRedisHost = false;
-    int nfromRedisHost = 0, ntoRedisHost = 0;
-    Map<String, String> env = System.getenv();
-    for (String envName : env.keySet()) {
-       if (envName.equals("FROM_REDIS_HOST")) {
-	 bFoundFromRedisHost = true;
-         nfromRedisHost = Integer.parseInt(env.get("FROM_REDIS_HOST"));
-       }
-       if (envName.equals("TO_REDIS_HOST")) {
-         ntoRedisHost = Integer.parseInt(env.get("TO_REDIS_HOST"));
-	 bFoundToRedisHost = true;
-       }
-    }
-    if (!bFoundFromRedisHost) {
-      throw new Exception("Abort:  no FROM_REDIS_HOST environment variable");
-    }
-    if (!bFoundToRedisHost) {
-      throw new Exception("Abort:  no TO_REDIS_HOST environment variable");
-    }
-    if (nfromRedisHost > ntoRedisHost) {
-      throw new Exception("Abort:  no FROM_REDIS_HOST must be <= TO_REDIS_HOST");
-    }
-    String[] retArr = new String[ntoRedisHost-nfromRedisHost+1];
-    for (int i = nfromRedisHost; i <= ntoRedisHost; i++) {
-      String redisHost = String.format("redis%02d", i);
-      retArr[i-nfromRedisHost] = redisHost;
-    }
-    return retArr;
+  public static List<RedisQueue> getRedisQueueIPs(String redisCatalogUrl) throws Exception {
+	 List<RedisQueue> queues = new ArrayList<RedisQueue>();
+
+	 String catalogJson = "";
+	 URL url = new URL(redisCatalogUrl);
+	 try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream(), "UTF-8"))) {
+	   for (String line; (line = reader.readLine()) != null;) {
+             catalogJson += line;
+	   }
+	 }
+	 //System.err.printf("catalogJson:\n");
+	 //System.err.printf("%s\n",catalogJson);
+	 //System.err.printf("--END--\n");
+
+	 JSONArray arr = (JSONArray) new JSONTokener(catalogJson).nextValue();
+	 System.err.println("Redis containers discovered:");
+	 for (int i = 0; i < arr.length(); i++) {
+		JSONObject obj = (JSONObject) arr.get(i);
+		String serviceName = obj.getString("ServiceName");
+		String serviceAddress = obj.getString("ServiceAddress");
+		int servicePort = obj.getInt("ServicePort");
+		System.err.printf("  serviceName='%s', serviceAddress='%s', servicePort='%d'\n",
+				serviceName, serviceAddress, servicePort);
+		RedisQueue redisQueue = new RedisQueue(serviceAddress,servicePort);
+		queues.add(redisQueue);
+	 }
+
+	 return queues;
   }
+
   public static void main(String[] args) {
 
     try {
-      String[] redisHosts = getRedisQueueHostnames();
-      System.err.printf("%d redis hosts\n", redisHosts.length);
-      for (int i = 0; i < redisHosts.length; i++) {
-	System.err.printf("  redisHosts[%d] = '%s'\n", i, redisHosts[i]);
-      }
+      Map<String, String> env = System.getenv();
+      String redisCatalogUrl = env.get("REDIS_CATALOG");
+      System.err.printf("redisCatalogUrl='%s'\n",redisCatalogUrl);
 
-      Jedis[] redisArr = new Jedis[redisHosts.length];
-      for (int i = 0; i < redisHosts.length; i++) {
-        redisArr[i] = connectToRedis(redisHosts[i]);
+      List<RedisQueue> redisHosts = getRedisQueueIPs(redisCatalogUrl);
+
+      System.err.printf("Connecting to %d redis hosts:\n", redisHosts.size());
+      Jedis[] redisArr = new Jedis[redisHosts.size()];
+      for (int i = 0; i < redisHosts.size(); i++) {
+	RedisQueue rq = redisHosts.get(i);
+	System.err.printf("  redisHosts[%d] = '%s:%d'\n", i, rq.address, rq.port);
+        redisArr[i] = connectToRedis(rq.address);
       }
 
       Connection dbConn = connectToDB("pg");
