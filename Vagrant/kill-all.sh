@@ -1,10 +1,12 @@
 #!/bin/sh
 
-# Examples:
-# IP="192.168.33.11" sh -c 'docker -H tcp://$IP:2375 ps'
-# CID=ca476182988c IP="192.168.33.11" sh -c 'docker -$ tcp://$IP:2375 stop $CID ; docker rm $CID'
+# Kills all containers on all nodes listed in 'arr' below
 
-arr=("192.168.33.11" "192.168.33.20" "192.168.33.200" "192.168.33.250")
+# Per node, doing the equivalent of:
+#   IP="192.168.33.11" sh -c 'docker -H tcp://$IP:2375 ps'
+#   CID=ca476182988c IP="192.168.33.11" sh -c 'docker -$ tcp://$IP:2375 stop $CID ; docker rm $CID'
+
+arr=("192.168.33.11" "192.168.33.20" "192.168.33.21" "192.168.33.200" "192.168.33.250")
 
 for IP in "${arr[@]}"; do
   echo "Clearing $IP"
