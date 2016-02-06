@@ -26,7 +26,7 @@
   web01:      t2.micro  / 192.168.33.20
   web02:      t2.micro  / 192.168.33.21
   worker01:   t2.micro  / 192.168.33.200
-  pg:         m3.medium	/ 192.168.33.250
+  pg:         m3.medium	/ 192.168.33.251
 
   AMI for all:  ami-56f59e36
   SG for all:  SG-WideOpen
