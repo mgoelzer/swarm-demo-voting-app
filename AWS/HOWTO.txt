@@ -1,6 +1,8 @@
 =========================
-  AWS Setup Prereqs
+  AWS Setup Steps
 =========================
+
+Note:  The overall setup sequence is documented in ../HOWTO.txt.  Once you complete these steps, pick up where you left off in ../HOWTO.txt.
 
 0.  Create a VPC and a subnet within it
   VPC Name:  SwarmCluster
