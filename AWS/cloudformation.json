@@ -41,8 +41,8 @@
       "ConstraintDescription": "must be a valid IP of the form x.x.x.x"
    },
 
-    "web01IP" : {
-      "Description" : "IP of web01",
+    "frontend01IP" : {
+      "Description" : "IP of frontend01",
       "Type": "String",
       "MinLength": "7",
       "MaxLength": "15",
@@ -51,8 +51,8 @@
       "ConstraintDescription": "must be a valid IP of the form x.x.x.x"
    },
 
-   "web02IP" : {
-      "Description" : "IP of web02",
+   "frontend02IP" : {
+      "Description" : "IP of frontend02",
       "Type": "String",
       "MinLength": "7",
       "MaxLength": "15",
@@ -203,7 +203,7 @@
     },
 
   
-    "web01" : {
+    "frontend01" : {
       "Type" : "AWS::EC2::Instance",
       "Properties" : {
         "InstanceType" : "t2.micro",
@@ -213,14 +213,14 @@
                                           { "Fn::FindInMap" : [ "AWSInstanceType2Arch", "t2.micro", "Arch" ] } 
                                         ] },
         "SubnetId" : { "Ref" : "SubnetId" },
-        "PrivateIpAddress" : { "Ref" : "web01IP" },
+        "PrivateIpAddress" : { "Ref" : "frontend01IP" },
         "UserData": {
           "Fn::Base64": {
             "Fn::Join": [
               "\n",
               [
                 "#!/bin/bash",
-                "sudo hostname web01",
+                "sudo hostname frontend01",
                 "sudo service docker stop",
                 "sudo rm -f /etc/docker/key.json",
                 "sudo service docker start"
@@ -229,12 +229,12 @@
           }
         },
         "Tags" : [
-            {"Key" : "Name", "Value" : "web01"}
+            {"Key" : "Name", "Value" : "frontend01"}
         ]
       }
     },
     
-    "web02" : {
+    "frontend02" : {
       "Type" : "AWS::EC2::Instance",
       "Properties" : {
         "InstanceType" : "t2.micro",
@@ -244,14 +244,14 @@
                                           { "Fn::FindInMap" : [ "AWSInstanceType2Arch", "t2.micro", "Arch" ] } 
                                         ] },
         "SubnetId" : { "Ref" : "SubnetId" },
-        "PrivateIpAddress" : { "Ref" : "web02IP" },
+        "PrivateIpAddress" : { "Ref" : "frontend02IP" },
         "UserData": {
           "Fn::Base64": {
             "Fn::Join": [
               "\n",
               [
                 "#!/bin/bash",
-                "sudo hostname web02",
+                "sudo hostname frontend02",
                 "sudo service docker stop",
                 "sudo rm -f /etc/docker/key.json",
                 "sudo service docker start"
@@ -260,7 +260,7 @@
           }
         },
         "Tags" : [
-            {"Key" : "Name", "Value" : "web02"}
+            {"Key" : "Name", "Value" : "frontend02"}
         ]
       }
     },
@@ -366,22 +366,22 @@
     },    
 
   
-    "web01PrivateIP" : {
-      "Description" : "Private IP of web01",
-      "Value" : { "Fn::GetAtt" : [ "web01", "PrivateIp" ] }
+    "frontend01PrivateIP" : {
+      "Description" : "Private IP of frontend01",
+      "Value" : { "Fn::GetAtt" : [ "frontend01", "PrivateIp" ] }
     },    
-    "web01PublicIP" : {
-      "Description" : "Public IP of web01",
-      "Value" : { "Fn::GetAtt" : [ "web01", "PublicIp" ] }
+    "frontend01PublicIP" : {
+      "Description" : "Public IP of frontend01",
+      "Value" : { "Fn::GetAtt" : [ "frontend01", "PublicIp" ] }
     },    
 
-    "web02PrivateIP" : {
-      "Description" : "Private IP of web02",
-      "Value" : { "Fn::GetAtt" : [ "web02", "PrivateIp" ] }
+    "frontend02PrivateIP" : {
+      "Description" : "Private IP of frontend02",
+      "Value" : { "Fn::GetAtt" : [ "frontend02", "PrivateIp" ] }
     },    
-    "web02PublicIP" : {
-      "Description" : "Public IP of web02",
-      "Value" : { "Fn::GetAtt" : [ "web02", "PublicIp" ] }
+    "frontend02PublicIP" : {
+      "Description" : "Public IP of frontend02",
+      "Value" : { "Fn::GetAtt" : [ "frontend02", "PublicIp" ] }
     },
 
     "worker01PrivateIP" : {
