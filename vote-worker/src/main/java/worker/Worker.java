@@ -3,30 +3,25 @@ package worker;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import java.sql.*;
-import org.json.JSONObject;
-import org.json.JSONArray;
-import org.json.JSONTokener;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
-import java.net.URL;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
+import org.json.JSONObject;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 
 class RedisQueue {
-  public String address;
-  public int port;
-  public RedisQueue(String address, int port) {
-    this.address = address; this.port = port;
+  public String hostname;
+  public String ip;
+  public RedisQueue(String hostname, String ip) {
+    this.hostname = hostname; this.ip = ip;
   }
   @Override
   public boolean equals(Object other) {
-    if (other == null) return false;
-    if (other == this) return true;   // TODO:  remove?
-    if (!(other instanceof RedisQueue)) return false;
+    if ((other == null) || (!(other instanceof RedisQueue))) return false;
     RedisQueue otherRedisQueue = (RedisQueue)other;
-    return ((otherRedisQueue.address==this.address) && (otherRedisQueue.port==this.port));
+    return ((otherRedisQueue.hostname==this.hostname) && (otherRedisQueue.ip==this.ip));
   }
 }
 
@@ -42,75 +37,64 @@ class Worker {
     return cp.isEmpty();
   }
 
-  public static List<RedisQueue> getRedisQueueIPs(String redisCatalogUrl) throws Exception {
-	 List<RedisQueue> queues = new ArrayList<RedisQueue>();
-
-	 String catalogJson = "";
-	 URL url = new URL(redisCatalogUrl);
-	 try (BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream(), "UTF-8"))) {
-	   for (String line; (line = reader.readLine()) != null;) {
-             catalogJson += line;
-	   }
-	 }
-	 //System.err.printf("catalogJson:\n");
-	 //System.err.printf("%s\n",catalogJson);
-	 //System.err.printf("--END--\n");
-
-	 JSONArray arr = (JSONArray) new JSONTokener(catalogJson).nextValue();
-	 System.err.println("Redis containers discovered:");
-	 for (int i = 0; i < arr.length(); i++) {
-		JSONObject obj = (JSONObject) arr.get(i);
-		String serviceName = obj.getString("ServiceName");
-		String serviceAddress = obj.getString("ServiceAddress");
-		int servicePort = obj.getInt("ServicePort");
-		System.err.printf("  serviceName='%s', serviceAddress='%s', servicePort='%d'\n",
-				serviceName, serviceAddress, servicePort);
-		RedisQueue redisQueue = new RedisQueue(serviceAddress,servicePort);
-		queues.add(redisQueue);
-	 }
-
-	 return queues;
+  // DNS lookup fmt (eg, 'redis%02d') on bounds inclusive range [min,max]
+  public static List<RedisQueue> discoverRedisQueues(String fmt, int min, int max) throws Exception {
+    List<RedisQueue> queues = new ArrayList<RedisQueue>();
+    for (int i = min; i <= max; i++) {
+      String hostname = String.format(fmt,i);
+      try {
+        InetAddress inetAddress = InetAddress.getByName(hostname);
+	String addr = inetAddress.getHostAddress();
+        //System.err.printf("'%s' registered at %s\n", hostname,addr);
+        RedisQueue redisQueue = new RedisQueue(hostname,addr);
+        queues.add(redisQueue);
+      } catch (UnknownHostException e) {
+	// ignore
+      }
+    }
+    return queues;
   }
 
   public static void main(String[] args) {
+    Map<String, String> env = System.getenv();
+    String redisFmt = env.get("REDIS_PREFIX") + "%02d";
 
-    try {
-      Map<String, String> env = System.getenv();
-      String redisCatalogUrl = env.get("REDIS_CATALOG");
-      System.err.printf("redisCatalogUrl='%s'\n",redisCatalogUrl);
+    while (true) {
+      try {
+        List<RedisQueue> redisHosts = discoverRedisQueues(redisFmt,0,99);
 
-      List<RedisQueue> redisHosts = getRedisQueueIPs(redisCatalogUrl);
+        System.err.printf("Connecting to %d redis hosts:\n", redisHosts.size());
+        Jedis[] redisArr = new Jedis[redisHosts.size()];
+        for (int i = 0; i < redisHosts.size(); i++) {
+	  RedisQueue rq = redisHosts.get(i);
+	  System.err.printf("  redisHosts[%d] = '%s:%s'\n", i, rq.hostname, rq.ip);
+          redisArr[i] = connectToRedis(rq.ip);
+        }
 
-      System.err.printf("Connecting to %d redis hosts:\n", redisHosts.size());
-      Jedis[] redisArr = new Jedis[redisHosts.size()];
-      for (int i = 0; i < redisHosts.size(); i++) {
-	RedisQueue rq = redisHosts.get(i);
-	System.err.printf("  redisHosts[%d] = '%s:%d'\n", i, rq.address, rq.port);
-        redisArr[i] = connectToRedis(rq.address);
+        Connection dbConn = connectToDB("pg");
+
+        for (int i = 0; i < redisArr.length; i++) {
+          while (true) {
+	    Jedis redis = redisArr[i];
+	    List<String> voteJSONLst = redis.blpop(10,"votes");
+	    if (voteJSONLst == null) break;
+            try {
+              JSONObject voteData = new JSONObject(voteJSONLst.get(1));
+              String voterID = voteData.getString("voter_id");
+              String vote = voteData.getString("vote");
+	      long epochMillis = voteData.getLong("ts");
+              System.err.printf("Processing vote for '%s' by '%s' from '%d':  ", vote, voterID, epochMillis);
+              updateVote(dbConn, voterID, vote, epochMillis);
+	    } catch (SQLException e) {
+              e.printStackTrace(System.err);
+            } catch (Exception e) {
+              e.printStackTrace(System.err);
+            }
+	  }
+        }
+      } catch (Exception e) {
+        e.printStackTrace(System.err);
       }
-
-      Connection dbConn = connectToDB("pg");
-
-      System.err.println("Watching vote queue");
-
-      while (true) {
-	for (int i = 0; i < redisArr.length; i++) {
-	  Jedis redis = redisArr[i];
-          String voteJSON = redis.blpop(0, "votes").get(1);
-          JSONObject voteData = new JSONObject(voteJSON);
-          String voterID = voteData.getString("voter_id");
-          String vote = voteData.getString("vote");
-	  long epochMillis = voteData.getLong("ts");
-          System.err.printf("Processing vote for '%s' by '%s' from '%d':  ", vote, voterID, epochMillis);
-          updateVote(dbConn, voterID, vote, epochMillis);
-	}
-      }
-    } catch (SQLException e) {
-      e.printStackTrace();
-      System.exit(1);
-    } catch (Exception e) {
-      e.printStackTrace();
-      System.exit(1);
     }
   }
 
@@ -150,7 +134,7 @@ class Worker {
       }
     }
 
-    System.err.println("Connected to redis");
+    //System.err.println("Connected to redis");
     return conn;
   }
 

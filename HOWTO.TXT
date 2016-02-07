@@ -39,12 +39,6 @@ docker -H=tcp://192.168.33.11:2375 run --restart=unless-stopped -d -p 3375:2375 
 export DOCKER_HOST="tcp://192.168.33.11:3375"
 docker network create --driver overlay mynet
 
-# Registrator agent on every node
-arr=("frontend01" "frontend02" "worker01" "pg" "master" "interlock") ; \
-for NODE in "${arr[@]}"; do \
-    docker run -d --env "constraint:node==$NODE" --net mynet --volume=/var/run/docker.sock:/tmp/docker.sock gliderlabs/registrator:latest consul://192.168.33.11:8500/ ; \
-done
-
 
 ###################################################
 #
@@ -133,7 +127,7 @@ docker run --restart=unless-stopped --env="constraint:node==frontend02" -d -p 50
 #
 # To start workers:
 #
-docker run --restart=unless-stopped --env="constraint:node==worker01" -d -e WORKER_NUMBER='01' -e REDIS_CATALOG="http://192.168.33.11:8500/v1/catalog/service/redis" --name worker01 --net mynet vote-worker
+docker run --restart=unless-stopped --env="constraint:node==worker01" -d -e WORKER_NUMBER='01' -e REDIS_PREFIX="redis" --name worker01 --net mynet vote-worker
 #[etc... for each worker]
 
 #
@@ -183,32 +177,5 @@ PGPASSWORD=pg8675309 $PSQL -p5432 -h 192.168.33.251 -U postgres -d postgres
 # Or view them in results-app:
 #
 http://192.168.33.251:80
-
-
-#
-# Having starting N redis's, view them in Registrator:
-#
-curl 192.168.33.11:8500/v1/catalog/service/redis | jq .
-[
-  {
-    "Node": "consul",
-    "Address": "172.17.0.2",
-    "ServiceID": "91b30bd7e369:redis01:6379",
-    "ServiceName": "redis",
-    "ServiceTags": null,
-    "ServiceAddress": "10.0.0.2",
-    "ServicePort": 6379
-  },
-  {
-    "Node": "consul",
-    "Address": "172.17.0.2",
-    "ServiceID": "087acb552df3:redis02:6379",
-    "ServiceName": "redis",
-    "ServiceTags": null,
-    "ServiceAddress": "10.0.0.3",
-    "ServicePort": 6379
-  }
-]
-
 
 
