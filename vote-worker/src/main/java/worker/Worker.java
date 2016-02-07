@@ -9,33 +9,17 @@ import java.util.List;
 import org.json.JSONObject;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
 
 
 class RedisQueue {
-  public String hostname;
-  public String ip;
+  public String hostname; public String ip;
   public RedisQueue(String hostname, String ip) {
     this.hostname = hostname; this.ip = ip;
-  }
-  @Override
-  public boolean equals(Object other) {
-    if ((other == null) || (!(other instanceof RedisQueue))) return false;
-    RedisQueue otherRedisQueue = (RedisQueue)other;
-    return ((otherRedisQueue.hostname==this.hostname) && (otherRedisQueue.ip==this.ip));
   }
 }
 
 class Worker {
-  // SO #16207718
-  private static boolean cmp( List<?> l1, List<?> l2 ) {
-    ArrayList<?> cp = new ArrayList<>( l1 );
-    for ( Object o : l2 ) {
-        if ( !cp.remove( o ) ) {
-            return false;
-        }
-    }
-    return cp.isEmpty();
-  }
 
   // DNS lookup fmt (eg, 'redis%02d') on bounds inclusive range [min,max]
   public static List<RedisQueue> discoverRedisQueues(String fmt, int min, int max) throws Exception {
@@ -45,11 +29,9 @@ class Worker {
       try {
         InetAddress inetAddress = InetAddress.getByName(hostname);
 	String addr = inetAddress.getHostAddress();
-        //System.err.printf("'%s' registered at %s\n", hostname,addr);
-        RedisQueue redisQueue = new RedisQueue(hostname,addr);
-        queues.add(redisQueue);
+        queues.add(new RedisQueue(hostname,addr));
       } catch (UnknownHostException e) {
-	// ignore
+	// No such host -- ignore
       }
     }
     return queues;
@@ -58,32 +40,27 @@ class Worker {
   public static void main(String[] args) {
     Map<String, String> env = System.getenv();
     String redisFmt = env.get("REDIS_PREFIX") + "%02d";
+    int redisMax = Integer.parseInt( env.get("REDIS_MAX") );
 
     while (true) {
       try {
-        List<RedisQueue> redisHosts = discoverRedisQueues(redisFmt,0,99);
-
-        System.err.printf("Connecting to %d redis hosts:\n", redisHosts.size());
-        Jedis[] redisArr = new Jedis[redisHosts.size()];
-        for (int i = 0; i < redisHosts.size(); i++) {
-	  RedisQueue rq = redisHosts.get(i);
-	  System.err.printf("  redisHosts[%d] = '%s:%s'\n", i, rq.hostname, rq.ip);
-          redisArr[i] = connectToRedis(rq.ip);
-        }
+        List<RedisQueue> redisHosts = discoverRedisQueues(redisFmt,0,redisMax);
 
         Connection dbConn = connectToDB("pg");
 
-        for (int i = 0; i < redisArr.length; i++) {
-          while (true) {
-	    Jedis redis = redisArr[i];
-	    List<String> voteJSONLst = redis.blpop(10,"votes");
-	    if (voteJSONLst == null) break;
+        System.err.printf("Connecting to %d redis hosts:\n", redisHosts.size());
+        for (int i = 0; i < redisHosts.size(); i++) {
+	  RedisQueue rq = redisHosts.get(i);
+	  System.err.printf("  redisHosts[%d] = '%s:%s'\n", i, rq.hostname, rq.ip);
+          Jedis redis = connectToRedis(rq.ip);
+          List<String> voteJSONLst;
+          while ((voteJSONLst = redis.blpop(1,"votes"))!=null) {
             try {
               JSONObject voteData = new JSONObject(voteJSONLst.get(1));
               String voterID = voteData.getString("voter_id");
               String vote = voteData.getString("vote");
 	      long epochMillis = voteData.getLong("ts");
-              System.err.printf("Processing vote for '%s' by '%s' from '%d':  ", vote, voterID, epochMillis);
+              System.err.printf("    Processing vote for '%s' by '%s' from '%d':  ", vote, voterID, epochMillis);
               updateVote(dbConn, voterID, vote, epochMillis);
 	    } catch (SQLException e) {
               e.printStackTrace(System.err);
@@ -91,6 +68,7 @@ class Worker {
               e.printStackTrace(System.err);
             }
 	  }
+
         }
       } catch (Exception e) {
         e.printStackTrace(System.err);
@@ -100,6 +78,9 @@ class Worker {
 
   static void updateVote(Connection dbConn, String voterID, String vote, long epochMillis) throws SQLException {
     Timestamp ts = new Timestamp(epochMillis);
+
+    String dbgTs = (new SimpleDateFormat("yyyy-MM-dd HH:mm.ss")).format(new Timestamp(epochMillis));
+    //System.err.printf("ts = %s\n",dbgTs);
 
     PreparedStatement insert = dbConn.prepareStatement(
       "INSERT INTO votes (id, vote, ts) VALUES (?, ?, ?)");
@@ -112,12 +93,13 @@ class Worker {
       System.err.printf("successful insert for '%s'\n", voterID);
     } catch (SQLException e) {
       PreparedStatement update = dbConn.prepareStatement(
-        "UPDATE votes SET vote = ? WHERE id = ? AND ts < ?");
+        "UPDATE votes SET vote = ?, ts = ? WHERE id = ? AND ts < ?");
       update.setString(1, vote);
-      update.setString(2, voterID);
-      update.setTimestamp(3, ts);
+      update.setTimestamp(2, ts);
+      update.setString(3, voterID);
+      update.setTimestamp(4, ts);
       int rowsAffected = update.executeUpdate();
-      System.err.printf("%d rows updated for '%s'\n", rowsAffected, voterID);
+      System.err.printf("%d rows updated for '%s' (%s)\n", rowsAffected, voterID, dbgTs);
     }
   }
 
@@ -134,7 +116,6 @@ class Worker {
       }
     }
 
-    //System.err.println("Connected to redis");
     return conn;
   }
 

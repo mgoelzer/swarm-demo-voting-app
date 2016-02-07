@@ -49,6 +49,7 @@ docker network create --driver overlay mynet
 #
 # To build web-vote-app:
 #
+cd ..
 cd web-vote-app
 docker rmi web-vote-app
 docker -H tcp://192.168.33.20:2375 build -t web-vote-app .
@@ -59,6 +60,7 @@ docker -H tcp://192.168.33.99:2375 build -t web-vote-app .
 #
 # To build worker:
 #
+cd ..
 cd vote-worker
 docker rmi vote-worker
 docker -H tcp://192.168.33.200:2375 build -t vote-worker .
@@ -77,6 +79,8 @@ docker -H tcp://192.168.33.99:2375 pull redis
 #
 # To build results-app (which runs on pg machine)
 #
+cd ..
+cd results-app
 docker -H tcp://192.168.33.251:2375 build -t results-app .
 
 
@@ -115,19 +119,18 @@ docker -H tcp://192.168.33.12:2375 run --restart=unless-stopped -p 80:80 --name 
 #
 # To run web+redis containers:
 #
-export DOCKER_HOST="tcp://192.168.33.11:3375"
-
 docker run --restart=unless-stopped --env="constraint:node==frontend01" -p 6379:6379 --name redis01 --net mynet -d redis  ## expose 6379 for debugging only!
 docker run --restart=unless-stopped --env="constraint:node==frontend01" -d -p 5000:80 -e FRONTEND_NUM='01' --name web01 --net mynet --hostname votingapp.local web-vote-app
 
 docker run --restart=unless-stopped --env="constraint:node==frontend02" -p 6379:6379 --name redis02 --net mynet -d redis  ## expose 6379 for debugging only!
 docker run --restart=unless-stopped --env="constraint:node==frontend02" -d -p 5000:80 -e FRONTEND_NUM='02' --name web02 --net mynet --hostname votingapp.local web-vote-app
+
 # [etc... for each web+redis node]
 
 #
 # To start workers:
 #
-docker run --restart=unless-stopped --env="constraint:node==worker01" -d -e WORKER_NUMBER='01' -e REDIS_PREFIX="redis" --name worker01 --net mynet vote-worker
+docker run --restart=unless-stopped --env="constraint:node==worker01" -d -e WORKER_NUMBER='01' -e REDIS_PREFIX="redis" -e REDIS_MAX=10 --name worker01 --net mynet vote-worker
 #[etc... for each worker]
 
 #
