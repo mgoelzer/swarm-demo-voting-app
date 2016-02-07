@@ -42,7 +42,7 @@ docker network create --driver overlay mynet
 # Registrator agent on every node
 arr=("frontend01" "frontend02" "worker01" "pg" "master" "interlock") ; \
 for NODE in "${arr[@]}"; do \
-    docker run -d -e constraint:node==$NODE --net=mynet --volume=/var/run/docker.sock:/tmp/docker.sock gliderlabs/registrator:latest consul://192.168.33.11:8500/ ; \
+    docker run -d --env "constraint:node==$NODE" --net mynet --volume=/var/run/docker.sock:/tmp/docker.sock gliderlabs/registrator:latest consul://192.168.33.11:8500/ ; \
 done
 
 
