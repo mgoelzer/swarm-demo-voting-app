@@ -20,9 +20,28 @@ class RedisQueue {
   public RedisQueue(String address, int port) {
     this.address = address; this.port = port;
   }
+  @Override
+  public boolean equals(Object other) {
+    if (other == null) return false;
+    if (other == this) return true;   // TODO:  remove?
+    if (!(other instanceof RedisQueue)) return false;
+    RedisQueue otherRedisQueue = (RedisQueue)other;
+    return ((otherRedisQueue.address==this.address) && (otherRedisQueue.port==this.port));
+  }
 }
 
 class Worker {
+  // SO #16207718
+  private static boolean cmp( List<?> l1, List<?> l2 ) {
+    ArrayList<?> cp = new ArrayList<>( l1 );
+    for ( Object o : l2 ) {
+        if ( !cp.remove( o ) ) {
+            return false;
+        }
+    }
+    return cp.isEmpty();
+  }
+
   public static List<RedisQueue> getRedisQueueIPs(String redisCatalogUrl) throws Exception {
 	 List<RedisQueue> queues = new ArrayList<RedisQueue>();
 
