@@ -71,14 +71,6 @@ docker -H tcp://192.168.33.201:2375 build -t vote-worker .
 docker -H tcp://192.168.33.249:2375 build -t vote-worker .
 
 #
-# To put redis image on each web node:
-#
-docker -H tcp://192.168.33.20:2375 pull redis
-docker -H tcp://192.168.33.21:2375 pull redis
-# [etc... for each web+redis node]
-docker -H tcp://192.168.33.99:2375 pull redis
-
-#
 # To build results-app (which runs on pg machine)
 #
 cd ..
@@ -88,30 +80,17 @@ docker -H tcp://192.168.33.251:2375 build -t results-app .
 
 ###################################################
 #
-# DNS setup:  do on machine from which you browse
+# Run instructions
 #
 ###################################################
 
 #
-# Vagrant:  point votingapp.local -> interlock on .12
+# To put redis image on each web node:
 #
-vi /etc/hosts
-Add this line:
-	192.168.33.12   votingapp.local
-
-#
-# AWS:  point votingapp.local -> public IP of interlock (found in Outputs tab of CloudFormation)
-#
-vi /etc/hosts
-Add this line:
-	<public IP of interlock>   votingapp.local
-
-
-###################################################
-#
-# Start application containers
-#
-###################################################
+docker -H tcp://192.168.33.20:2375 pull redis
+docker -H tcp://192.168.33.21:2375 pull redis
+# [etc... for each web+redis node]
+docker -H tcp://192.168.33.99:2375 pull redis
 
 #
 # AWS and Vagrant:  start Interlock on dedicated machine .12 (but listening to swarm master on .11):
@@ -144,6 +123,27 @@ docker run --restart=unless-stopped --env="constraint:node==pg" -p 80:80 -d --na
 # To start postgres container:
 #
 docker run --restart=unless-stopped --env="constraint:node==pg" --name pg -e POSTGRES_PASSWORD=pg8675309 --net mynet -p 5432:5432 -d postgres ## expose 5432 for debugging only
+
+
+###################################################
+#
+# DNS setup:  do on machine from which you browse
+#
+###################################################
+
+#
+# Vagrant:  point votingapp.local -> interlock on .12
+#
+vi /etc/hosts
+Add this line:
+	192.168.33.12   votingapp.local
+
+#
+# AWS:  point votingapp.local -> public IP of interlock (found in Outputs tab of CloudFormation)
+#
+vi /etc/hosts
+Add this line:
+	<public IP of interlock>   votingapp.local
 
 
 ###################################################
