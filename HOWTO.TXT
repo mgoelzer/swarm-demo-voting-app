@@ -35,9 +35,6 @@ docker -H=tcp://192.168.33.11:2375 run --restart=unless-stopped -d -p 8500:8500 
 # Start the Swarm manager
 docker -H=tcp://192.168.33.11:2375 run --restart=unless-stopped -d -p 3375:2375 swarm manage --discovery-opt="kv.path=docker/nodes" consul://192.168.33.11:8500/
 
-# From this point forward, all `docker` commands can be sent to Swarm manager (no more -H)
-export DOCKER_HOST="tcp://192.168.33.11:3375"
-
 # Create the overlay network
 docker network create --driver overlay mynet
 
@@ -77,6 +74,21 @@ cd ..
 cd results-app
 docker -H tcp://192.168.33.251:2375 build -t results-app .
 
+#
+# Put redis image on each web node manually to make it start
+# faster (not technically necessary, just makes demo smoother)
+#
+docker -H tcp://192.168.33.20:2375 pull redis
+docker -H tcp://192.168.33.21:2375 pull redis
+# [etc... for each web+redis node]
+docker -H tcp://192.168.33.99:2375 pull redis
+
+#
+# From this point forward, all `docker` commands can be 
+# sent to Swarm manager (no more -H)
+#
+export DOCKER_HOST="tcp://192.168.33.11:3375"
+
 
 ###################################################
 #
@@ -85,15 +97,7 @@ docker -H tcp://192.168.33.251:2375 build -t results-app .
 ###################################################
 
 #
-# To put redis image on each web node:
-#
-docker -H tcp://192.168.33.20:2375 pull redis
-docker -H tcp://192.168.33.21:2375 pull redis
-# [etc... for each web+redis node]
-docker -H tcp://192.168.33.99:2375 pull redis
-
-#
-# AWS and Vagrant:  start Interlock on dedicated machine .12 (but listening to swarm master on .11):
+# Start Interlock on dedicated machine .12 (but listening to events from Swarm master on .11:3375)
 #
 docker -H tcp://192.168.33.12:2375 run --restart=unless-stopped -p 80:80 --name interlock -d ehazlett/interlock --swarm-url tcp://192.168.33.11:3375 --plugin haproxy start
 
@@ -106,7 +110,7 @@ docker run --restart=unless-stopped --env="constraint:node==frontend01" -d -p 50
 docker run --restart=unless-stopped --env="constraint:node==frontend02" -p 6379:6379 --name redis02 --net mynet -d redis  ## expose 6379 for debugging only!
 docker run --restart=unless-stopped --env="constraint:node==frontend02" -d -p 5000:80 -e QUEUE_HOSTNAME="redis02" -e DEBUG_SELF_NAME="web02"  --name web02 --net mynet --hostname votingapp.local web-vote-app
 
-# [etc... for each web+redis node]
+# [repeat for each frontendXX (ie, webXX+redisXX) node]
 
 #
 # To start workers:
